@@ -299,9 +299,16 @@ class TrainManager:
             # Handle Gaussian noise for data augmentation
             if self.gaussian_noise:
                 if len(all_epoch_noise) != 0:
-                    self.model.out_stds = torch.mean(torch.stack(([noise.std(dim=[0]) for noise in all_epoch_noise])), dim=-2)
+                    # Xử lý out_stds cho mô hình trong DataParallel
+                    if hasattr(self.model, 'module'):
+                        self.model.module.out_stds = torch.mean(torch.stack(([noise.std(dim=[0]) for noise in all_epoch_noise])), dim=-2)
+                    else:
+                        self.model.out_stds = torch.mean(torch.stack(([noise.std(dim=[0]) for noise in all_epoch_noise])), dim=-2)
                 else:
-                    self.model.out_stds = None
+                    if hasattr(self.model, 'module'):
+                        self.model.module.out_stds = None
+                    else:
+                        self.model.out_stds = None
                 all_epoch_noise = []
             
             # Iterate over training batches
@@ -320,9 +327,18 @@ class TrainManager:
                 # Collect noise for Gaussian noise augmentation
                 if self.gaussian_noise:
                     if self.future_prediction != 0:
-                        all_epoch_noise.append(noise.reshape(-1, self.model.out_trg_size // self.future_prediction))
+                        # Truy cập out_trg_size qua model.module nếu là DataParallel
+                        if hasattr(self.model, 'module'):
+                            out_trg_size = self.model.module.out_trg_size
+                        else:
+                            out_trg_size = self.model.out_trg_size
+                        all_epoch_noise.append(noise.reshape(-1, out_trg_size // self.future_prediction))
                     else:
-                        all_epoch_noise.append(noise.reshape(-1, self.model.out_trg_size))
+                        if hasattr(self.model, 'module'):
+                            out_trg_size = self.model.module.out_trg_size
+                        else:
+                            out_trg_size = self.model.out_trg_size
+                        all_epoch_noise.append(noise.reshape(-1, out_trg_size))
                 
                 # Log batch loss to TensorBoard
                 self.tb_writer.add_scalar("train/train_batch_loss", batch_loss, self.steps)
@@ -482,7 +498,11 @@ class TrainManager:
         :param update: If True, update model parameters.
         :return: Normalized batch loss and noise (if applicable).
         """
-        batch_loss, noise = self.model.get_loss_for_batch(batch=batch, loss_function=self.loss)
+        # Truy cập get_loss_for_batch bằng cách kiểm tra DataParallel
+        if hasattr(self.model, 'module'):
+            batch_loss, noise = self.model.module.get_loss_for_batch(batch=batch, loss_function=self.loss)
+        else:
+            batch_loss, noise = self.model.get_loss_for_batch(batch=batch, loss_function=self.loss)
         
         # Normalize loss
         if self.normalization == "batch":

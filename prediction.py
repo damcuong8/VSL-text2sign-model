@@ -47,6 +47,14 @@ def validate_on_data(model: Model,
     # Set model to evaluation mode (disable dropout)
     model.eval()
 
+    # Get the actual model from DataParallel if needed
+    model_module = model.module if hasattr(model, 'module') else model
+    src_vocab = model_module.src_vocab
+    out_trg_size = model_module.out_trg_size
+    use_cuda = model_module.use_cuda
+    just_count_in = model_module.just_count_in
+    future_prediction = model_module.future_prediction
+
     # Disable gradient computation during validation
     with torch.no_grad():
         # Lists to store hypotheses, references, inputs, file paths, and DTW scores
@@ -69,40 +77,46 @@ def validate_on_data(model: Model,
             # Create a Batch object from the raw batch data
             batch = Batch(
                 batch=valid_batch,  # Updated to pass dictionary directly
-                src_vocab=model.src_vocab,
-                trg_size=model.out_trg_size,
+                src_vocab=src_vocab,
+                trg_size=out_trg_size,
                 model=model,
-                device=torch.device("cuda" if model.use_cuda else "cpu")
+                device=torch.device("cuda" if use_cuda else "cpu")
             )
 
             targets = batch.trg  # Extract target sequences
 
             # Compute loss if loss function and targets are provided
             if loss_function is not None and batch.trg is not None:
-                batch_loss, _ = model.get_loss_for_batch(
-                    batch, loss_function=loss_function)
+                # Truy cập get_loss_for_batch qua model hoặc model.module
+                if hasattr(model, 'module'):
+                    batch_loss, _ = model.module.get_loss_for_batch(
+                        batch, loss_function=loss_function)
+                else:
+                    batch_loss, _ = model.get_loss_for_batch(
+                        batch, loss_function=loss_function)
                 valid_loss += batch_loss.item()
                 total_ntokens += batch.ntokens
                 total_nseqs += batch.nseqs
 
             # Run inference to generate outputs if not just counting
-            if not model.just_count_in:
-                output, attention_scores = model.run_batch(
-                    batch=batch
-                )
+            if not just_count_in:
+                # Truy cập run_batch qua model hoặc model.module
+                if hasattr(model, 'module'):
+                    output, attention_scores = model.module.run_batch(batch=batch)
+                else:
+                    output, attention_scores = model.run_batch(batch=batch)
 
             # Handle future prediction if enabled
-            if model.future_prediction != 0:
+            if future_prediction != 0:
                 # Truncate targets to keep only the first frame and counter
-
                 targets = torch.cat(
-                    (targets[:, :, :targets.shape[2] // model.future_prediction],
+                    (targets[:, :, :targets.shape[2] // future_prediction],
                      targets[:, :, -1:]),
                     dim=2
                 )
 
             # If only counting, use targets as output
-            if model.just_count_in:
+            if just_count_in:
                 output = targets  # Fix: Use targets instead of undefined train_output
 
             # Collect references, hypotheses, file paths, and source inputs
@@ -110,7 +124,7 @@ def validate_on_data(model: Model,
             valid_hypotheses.extend(output)
             file_paths.extend(batch.file_paths)
             valid_inputs.extend([
-                [model.src_vocab.itos[batch.src[i][j]] for j in range(len(batch.src[i]))]
+                [src_vocab.itos[batch.src[i][j]] for j in range(len(batch.src[i]))]
                 for i in range(len(batch.src))
             ])
 
