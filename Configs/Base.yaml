@@ -41,25 +41,25 @@ model:
     trg_size: 462  # Size of target skeleton coordinates (150 for Inverse Kinematics body/hands)
     just_count_in: False # Flag for Just Counter Data Augmentation
     gaussian_noise: True # Flag for Gaussian Noise Data Augmentation
-    noise_rate: 5 # Gaussian Noise rate
+    noise_rate: 3 # Gaussian Noise rate
     future_prediction: 8 # Future Prediction Data Augmentation if > 0
     encoder:  # Model Encoder
         type: "transformer"
-        num_layers: 2 # Number of layers
-        num_heads: 4  # Number of Heads
+        num_layers: 4 # Number of layers
+        num_heads: 8  # Number of Heads
         embeddings:
             embedding_dim: 512  # Embedding Dimension
-            dropout: 0.0 # Embedding Dropout
+            dropout: 0.1 # Embedding Dropout
         hidden_size: 512 # Hidden Size Dimension
         ff_size: 2048 # Feed-forward dimension (4 x hidden_size)
         dropout: 0.0 # Encoder Dropout
     decoder: # Model Decoder
         type: "transformer"
-        num_layers: 2 # Number of layers
-        num_heads: 4 # Number of Heads
+        num_layers: 4 # Number of layers
+        num_heads: 8 # Number of Heads
         embeddings:
             embedding_dim: 512 # Embedding Dimension
-            dropout: 0.0 # Embedding Dropout
+            dropout: 0.15 # Embedding Dropout
         hidden_size: 512 # Hidden Size Dimension
         ff_size: 2048 # Feed-forward dimension (4 x hidden_size)
-        dropout: 0.0 # Decoder Dropout
+        dropout: 0.1 # Decoder Dropout
